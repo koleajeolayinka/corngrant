@@ -1,0 +1,6 @@
+{
+  "name": "CornGrant",
+  "description": "A community-powered micro-grant platform where small businesses get funded directly by everyday people by sharing real-time, transparent updates of their daily work.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
