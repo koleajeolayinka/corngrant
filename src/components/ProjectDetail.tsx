@@ -1,22 +1,59 @@
 import React, { useState } from "react";
 import { Project } from "../types";
-import { ArrowLeft, Clock, History, Landmark, Sparkles, Check, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Clock, History, Landmark, Check, CheckCircle2, ShieldCheck, Users } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface ProjectDetailProps {
   project: Project;
   onBack: () => void;
-  onDonate: (amount: number) => Promise<void>;
+  onDonate: (amount: number, projectId: string) => Promise<void>;
 }
 
 export default function ProjectDetail({ project, onBack, onDonate }: ProjectDetailProps) {
-  const [selectedAmount, setSelectedAmount] = useState<number | "custom">(25);
+  const [selectedAmount, setSelectedAmount] = useState<number | "custom">(5000);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [successAmount, setSuccessAmount] = useState(25);
+  const [successAmount, setSuccessAmount] = useState(5000);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+
+  const sponsorWidgetRef = React.useRef<HTMLDivElement>(null);
+  const customInputRef = React.useRef<HTMLInputElement>(null);
+
+  const fallbackImage = "https://images.unsplash.com/photo-1463171359979-300662226149?auto=format&fit=crop&w=800&q=80";
+
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [project.id]);
+
+  const handleScrollToSponsor = () => {
+    sponsorWidgetRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+      if (selectedAmount === "custom") {
+        customInputRef.current?.focus();
+      }
+    }, 800);
+  };
 
   const percent = Math.min(100, Math.round((project.raisedAmount / project.targetAmount) * 100));
+  const backersCount = Math.floor(project.raisedAmount / 150) + 4;
+
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'nomba-checkout-success') {
+        const amt = Number(event.data.amount) || 5000;
+        setCheckoutUrl(null);
+        setSuccessAmount(amt);
+        setShowSuccess(true);
+        onDonate(amt, project.id);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [onDonate, project.id]);
 
   const handleCheckout = async () => {
     let finalAmount = 0;
@@ -32,48 +69,85 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
     }
 
     setIsSubmitting(true);
-    setSuccessAmount(finalAmount);
 
-    // Simulate standard secure payment checkout via Nomba API gateway (1.5 seconds)
-    setTimeout(async () => {
-      try {
-        await onDonate(finalAmount);
-        setIsSubmitting(false);
-        setShowSuccess(true);
-      } catch (err) {
-        alert("Simulated transaction failed. Please try again.");
-        setIsSubmitting(false);
+    try {
+      const res = await fetch("/api/checkout/initialize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: finalAmount, projectId: project.id })
+      });
+      const data = await res.json();
+      if (data.checkoutUrl) {
+        setCheckoutUrl(data.checkoutUrl);
+      } else {
+        throw new Error("Missing checkoutUrl");
       }
-    }, 1500);
+    } catch (err) {
+      alert("Payment gateway failed to initialize. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="space-y-10 relative">
-      {/* Back navigation header */}
+    <div className="space-y-10 relative bg-white pb-12">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-[#15803d] transition-colors cursor-pointer group"
+        className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-emerald-600 transition-colors cursor-pointer group"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-        Back to Discover Feed
+        Back to active campaigns
       </button>
 
-      {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column (Profile Header & Project Journal) */}
-        <div className="lg:col-span-8 space-y-10">
-          {/* Business Profile Header */}
-          <section className="bg-[#FDFBF7] p-6 md:p-8 rounded-2xl border border-[#F2EEE6] flex flex-col md:flex-row gap-6 items-start md:items-center">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-white border border-[#F2EEE6] p-1.5 shadow-xs">
+        <div className="lg:col-span-8 space-y-8">
+          <div className="relative rounded-3xl overflow-hidden h-[340px] border border-gray-200 group shadow-md bg-gray-100 w-full">
+            <img
+              src={project.image}
+              alt={project.name}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-700 ease-out"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = fallbackImage;
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-8 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-4 w-full">
+                <div className="space-y-1 text-white min-w-0 max-w-full">
+                  <span className="inline-flex items-center gap-1 bg-emerald-600/95 text-white text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-xs whitespace-nowrap overflow-hidden text-ellipsis">
+                    Verified Active Campaign
+                  </span>
+                  <h2 className="text-xl md:text-2xl font-extrabold tracking-tight drop-shadow-md truncate max-w-full">
+                    {project.name}
+                  </h2>
+                </div>
+                <button
+                  onClick={handleScrollToSponsor}
+                  className="bg-white hover:bg-emerald-50 text-emerald-800 font-extrabold text-xs px-5 py-3 rounded-xl transition-all duration-300 shadow-lg cursor-pointer transform hover:scale-[1.03] active:scale-[0.98] flex items-center gap-1.5 flex-shrink-0"
+                >
+                  <span>Plant a Seed</span>
+                  <span className="text-sm">🌱</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <section className="bg-gray-50 p-6 md:p-8 rounded-2xl border border-gray-200 flex flex-col md:flex-row gap-6 items-start md:items-center">
+            <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-white border border-gray-200 p-2 shadow-sm">
               <img
                 src={project.logo}
                 alt={project.name}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = fallbackImage;
+                }}
               />
             </div>
-            <div className="flex-grow space-y-3">
-              <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight leading-none">
+            <div className="flex-grow space-y-3 min-w-0">
+              <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight leading-none truncate w-full">
                 {project.name}
               </h1>
               <p className="text-sm text-gray-600 leading-relaxed font-sans">
@@ -83,12 +157,10 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
                 {project.tags.map((tag, i) => (
                   <span
                     key={tag}
-                    className={`px-3 py-1 rounded-full font-sans text-xs font-semibold tracking-wide ${
+                    className={`px-3 py-1 rounded-full font-sans text-xs font-semibold tracking-wide truncate max-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis ${
                       i === 0 
-                        ? "bg-[#15803d]/10 text-[#15803d]" 
-                        : i === 1 
-                        ? "bg-[#fdc003]/10 text-[#785900]" 
-                        : "bg-gray-100 text-gray-600"
+                        ? "bg-emerald-50 text-emerald-850 border border-emerald-100" 
+                        : "bg-gray-100 text-gray-600 border border-gray-200"
                     }`}
                   >
                     {tag}
@@ -98,63 +170,54 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
             </div>
           </section>
 
-          {/* Dotted Timeline section */}
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-              <History className="w-5 h-5 text-[#15803d]" />
-              Project Journal
+              <History className="w-5 h-5 text-emerald-700" />
+              Project Verification Journal
             </h2>
 
-            {/* Vertical timeline line container */}
-            <div className="relative pl-8 md:pl-10 space-y-8 before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-0.5 before:border-l-2 before:border-dashed before:border-[#becab9]">
+            <div className="relative pl-8 md:pl-10 space-y-8 before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-0.5 before:border-l-2 before:border-dashed before:border-gray-200">
               {project.logs.length === 0 ? (
-                <div className="text-center py-10 bg-[#FDFBF7] border border-dashed border-[#becab9] rounded-xl">
+                <div className="text-center py-10 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
                   <p className="text-sm text-gray-500 font-sans">No daily logs posted yet for this project.</p>
                 </div>
               ) : (
                 project.logs.map((log, idx) => (
                   <div key={log.id} className="relative">
-                    {/* Node circle */}
                     <div 
                       className={`absolute -left-[29px] md:-left-[31px] top-1.5 w-6 h-6 rounded-full border-4 border-white z-10 transition-colors ${
-                        idx === 0 ? "bg-[#15803d]" : "bg-[#becab9]"
+                        idx === 0 ? "bg-emerald-700" : "bg-gray-300"
                       }`}
                     />
 
-                    {/* Timeline Log Card */}
                     <motion.div
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="bg-white border border-[#F2EEE6] rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-shadow"
+                      className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all"
                     >
                       <div className="p-6 space-y-4">
-                        {/* Log Date & Time */}
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-bold text-[#15803d] tracking-wide bg-[#15803d]/5 px-2.5 py-1 rounded-md flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 fill-current" />
-                            {log.dateLabel}
+                        <div className="flex justify-between items-center text-xs gap-4">
+                          <span className="font-bold text-emerald-800 tracking-wide bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-md flex items-center gap-1 truncate whitespace-nowrap overflow-hidden text-ellipsis">
+                            Verified Log: {log.dateLabel}
                           </span>
-                          <span className="text-gray-500 flex items-center gap-1 font-sans font-medium">
+                          <span className="text-gray-500 flex items-center gap-1 font-sans font-medium whitespace-nowrap overflow-hidden text-ellipsis">
                             <Clock className="w-3.5 h-3.5" />
                             {log.timeLabel}
                           </span>
                         </div>
 
-                        {/* AI formatted display text */}
                         <p className="text-base text-gray-800 font-medium leading-relaxed">
                           {log.text}
                         </p>
 
-                        {/* If the owner has customized it or there is rawText shown */}
                         {log.rawText !== log.text && (
-                          <div className="text-xs text-gray-400 bg-gray-50 p-3 rounded-lg border border-[#F2EEE6]">
-                            <span className="font-semibold block mb-0.5">Raw owner log:</span>
+                          <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200 font-sans">
+                            <span className="font-semibold block mb-0.5 text-gray-700">Owner original submission:</span>
                             "{log.rawText}"
                           </div>
                         )}
 
-                        {/* Optional Attached Images Grid */}
                         {log.images && log.images.length > 0 && (
                           <div className={`grid gap-3 pt-2 ${
                             log.images.length === 1 ? "grid-cols-1" : "grid-cols-2"
@@ -162,7 +225,7 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
                             {log.images.map((imgUrl, imgIdx) => (
                               <div 
                                 key={imgIdx} 
-                                className={`rounded-xl overflow-hidden bg-gray-50 border border-[#F2EEE6] ${
+                                className={`rounded-xl overflow-hidden bg-gray-50 border border-gray-200 ${
                                   log.images.length === 1 ? "h-64" : "h-40"
                                 }`}
                               >
@@ -170,7 +233,11 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
                                   src={imgUrl}
                                   alt={`Proof of work attachment ${imgIdx + 1}`}
                                   referrerPolicy="no-referrer"
-                                  className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-300"
+                                  className="w-full h-full object-cover hover:scale-[1.01] transition-transform duration-300"
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = fallbackImage;
+                                  }}
                                 />
                               </div>
                             ))}
@@ -185,121 +252,161 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
           </div>
         </div>
 
-        {/* Right Column (Plant a Seed Grant Widget) */}
-        <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-6">
-          <div className="bg-white border-2 border-[#fdc003] rounded-3xl shadow-md overflow-hidden">
-            {/* Header */}
-            <div className="bg-[#fdc003] p-5 flex items-center gap-2">
-              <Landmark className="w-5 h-5 text-[#6c5000]" />
-              <h3 className="text-lg font-extrabold text-[#6c5000] tracking-tight">
-                Plant a Seed
-              </h3>
-            </div>
+        <aside ref={sponsorWidgetRef} className="lg:col-span-4 lg:sticky lg:top-24 space-y-6 w-full min-w-0">
+          <div className="bg-white border border-gray-200 rounded-3xl shadow-md overflow-hidden w-full">
+            <div className="h-2 bg-emerald-700"></div>
 
-            {/* Widget Body */}
-            <div className="p-6 space-y-6">
-              {/* Progress Tracker */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-baseline text-sm">
-                  <span className="font-extrabold text-gray-900">${project.raisedAmount.toLocaleString()} raised</span>
-                  <span className="text-gray-500 text-xs">of ${project.targetAmount.toLocaleString()}</span>
+            <div className="p-6 space-y-6 w-full">
+              <h3 className="text-xl font-extrabold text-gray-950 tracking-tight flex items-center gap-2 truncate whitespace-nowrap overflow-hidden text-ellipsis">
+                <Landmark className="w-5 h-5 text-emerald-700 flex-shrink-0" />
+                Sponsor this Campaign
+              </h3>
+
+              <div className="space-y-3 p-4 bg-gray-50 border border-gray-150 rounded-2xl w-full overflow-hidden">
+                <div className="overflow-hidden whitespace-nowrap w-full">
+                  <div className="flex items-baseline text-2xl font-extrabold text-gray-950 tracking-tight leading-none overflow-hidden whitespace-nowrap text-ellipsis w-full">
+                    <span className="truncate whitespace-nowrap overflow-hidden text-ellipsis">₦{project.raisedAmount.toLocaleString()}</span>
+                    <span className="text-gray-500 text-xs font-semibold font-sans ml-1.5 truncate whitespace-nowrap overflow-hidden text-ellipsis">raised</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 font-sans font-medium mt-1.5 truncate whitespace-nowrap overflow-hidden text-ellipsis">
+                    of ₦{project.targetAmount.toLocaleString()} target goal
+                  </div>
                 </div>
-                <div className="w-full bg-[#f0eded] h-3 rounded-full overflow-hidden">
+
+                <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden relative shadow-inner">
                   <div 
-                    className="bg-[#fdc003] h-full rounded-full transition-all duration-1000" 
+                    className="bg-emerald-600 h-full rounded-full transition-all duration-1000 ease-out" 
                     style={{ width: `${percent}%` }}
                   ></div>
                 </div>
-                <p className="text-xs text-gray-500 font-sans text-center font-medium mt-1">
-                  {percent}% funded by 482 community members
+
+                <p className="text-xs text-gray-650 font-sans font-bold flex items-center justify-center gap-1.5 pt-0.5 truncate whitespace-nowrap overflow-hidden text-ellipsis">
+                  <Users className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span className="truncate whitespace-nowrap overflow-hidden text-ellipsis">{percent}% funded by {backersCount} neighbors</span>
                 </p>
               </div>
 
-              {/* Presets and Custom Inputs */}
-              <div className="space-y-3">
+              <div className="space-y-3 pt-1">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Select Sponsor Amount</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {[5, 10, 25].map(amount => (
+                  {[1000, 5000, 10000, 25000].map(amount => (
                     <button
                       key={amount}
                       onClick={() => setSelectedAmount(amount)}
-                      className={`py-3 rounded-xl font-bold text-sm border transition-all cursor-pointer ${
+                      className={`py-3 rounded-xl font-bold text-sm border transition-all duration-200 cursor-pointer ${
                         selectedAmount === amount
-                          ? "border-[#15803d] bg-[#15803d]/5 text-[#15803d] border-2"
-                          : "border-[#becab9] text-gray-700 hover:bg-gray-50"
+                          ? "border-emerald-700 bg-emerald-50 text-emerald-800 border-2 shadow-xs scale-[1.02]"
+                          : "border-gray-200 text-gray-750 hover:bg-gray-50 hover:border-gray-300"
                       }`}
                     >
-                      ${amount}
+                      ₦{amount.toLocaleString()}
                     </button>
                   ))}
                   <button
                     onClick={() => setSelectedAmount("custom")}
-                    className={`py-3 rounded-xl font-bold text-sm border transition-all cursor-pointer ${
+                    className={`py-3 rounded-xl font-bold text-sm border transition-all duration-200 cursor-pointer ${
                       selectedAmount === "custom"
-                        ? "border-[#15803d] bg-[#15803d]/5 text-[#15803d] border-2"
-                        : "border-[#becab9] text-gray-700 hover:bg-gray-50"
+                        ? "border-emerald-700 bg-emerald-50 text-emerald-800 border-2 shadow-xs scale-[1.02]"
+                        : "border-gray-200 text-gray-750 hover:bg-gray-50 hover:border-gray-300"
                     }`}
                   >
-                    Custom
+                    Custom Amount
                   </button>
                 </div>
 
-                {/* Custom Amount Field */}
-                {selectedAmount === "custom" && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="relative"
-                  >
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
-                    <input
-                      type="number"
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      placeholder="Enter custom amount"
-                      className="w-full pl-8 pr-4 py-3 border border-[#15803d] rounded-xl focus:ring-1 focus:ring-[#15803d] focus:border-[#15803d] bg-white outline-none font-sans text-sm text-gray-800"
-                    />
-                  </motion.div>
-                )}
+                <AnimatePresence initial={false}>
+                  {selectedAmount === "custom" && (
+                    <motion.div 
+                      key="custom-amount-panel"
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                      className="relative overflow-hidden"
+                    >
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₦</span>
+                      <input
+                        ref={customInputRef}
+                        type="number"
+                        value={customAmount}
+                        onChange={(e) => setCustomAmount(e.target.value)}
+                        placeholder="Enter custom amount"
+                        className="w-full pl-8 pr-4 py-3 border border-emerald-700 rounded-xl focus:ring-1 focus:ring-emerald-700 focus:border-emerald-700 bg-white outline-none font-sans text-sm text-gray-800 font-bold"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* Action checkout button */}
               <button
                 onClick={handleCheckout}
                 disabled={isSubmitting}
-                className="w-full bg-[#fdc003] hover:bg-[#fabd00] text-[#261a00] font-bold text-base py-4 rounded-xl shadow-xs hover:shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-base py-3.5 rounded-xl shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-300 ease-in-out flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
-                    <span className="animate-spin border-2 border-[#261a00] border-t-transparent rounded-full w-5 h-5"></span>
-                    Initializing Secure Nomba Checkout...
+                    <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-5 h-5"></span>
+                    Initializing Secure Gateway...
                   </>
                 ) : (
                   <>
-                    Plant a Seed
+                    Sponsor Now
                   </>
                 )}
               </button>
 
-              {/* Secure partner banner */}
-              <div className="pt-4 border-t border-[#F2EEE6] flex justify-center items-center gap-1.5 text-xs text-gray-500 font-sans">
-                <ShieldCheck className="w-4 h-4 text-[#15803d]" />
-                <span>Secured by</span>
-                <span className="font-extrabold text-gray-800 opacity-70">Nomba API</span>
+              <div className="pt-4 border-t border-gray-150 flex justify-center items-center gap-1.5 text-xs text-gray-500 font-sans">
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                <span>Secured by Nomba Gateway</span>
               </div>
             </div>
           </div>
 
-          {/* Secondary Info Card */}
-          <div className="bg-[#FDFBF7] p-5 rounded-2xl border border-[#F2EEE6]">
-            <h4 className="font-bold text-gray-800 text-sm mb-1.5">Why Fund This?</h4>
-            <p className="text-xs text-gray-500 leading-relaxed font-sans">
-              Every single dollar goes directly toward certified infrastructure and operations. Your transparency-backed contribution directly fuels localized job training, resource conservation, and neighborhood health.
+          <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+            <h4 className="font-bold text-gray-805 text-sm mb-1.5">Why Back This Campaign?</h4>
+            <p className="text-xs text-gray-600 leading-relaxed font-sans">
+              Every single contribution is processed via a secure institutional pathway. Your transparency-backed sponsorship directly funds certified infrastructure, seeds, and community progress goals.
             </p>
           </div>
         </aside>
       </div>
 
-      {/* Simulated Nomba Checkout Overlay Dialog Success */}
+      <AnimatePresence>
+        {checkoutUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-[#11111d] rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative border border-gray-800 flex flex-col h-[650px]"
+            >
+              <div className="p-4 bg-[#181829] border-b border-gray-800 flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nomba Secure Gateway</span>
+                <button
+                  onClick={() => setCheckoutUrl(null)}
+                  className="text-gray-400 hover:text-white transition-colors text-xs font-bold bg-gray-800/50 hover:bg-gray-800 px-3 py-1.5 rounded-lg cursor-pointer"
+                >
+                  Cancel Payment
+                </button>
+              </div>
+
+              <div className="flex-grow bg-[#11111d] relative">
+                <iframe
+                  src={checkoutUrl}
+                  title="Nomba Checkout Sandbox"
+                  className="w-full h-full border-0 rounded-b-3xl"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showSuccess && (
           <motion.div
@@ -312,21 +419,21 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl max-w-md w-full p-8 text-center space-y-6 shadow-2xl border border-[#becab9]"
+              className="bg-white rounded-3xl max-w-md w-full p-8 text-center space-y-6 shadow-2xl border border-gray-200"
             >
-              <div className="w-16 h-16 bg-[#15803d]/10 rounded-full flex items-center justify-center mx-auto text-[#15803d]">
+              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto text-emerald-600 border border-emerald-100">
                 <Check className="w-8 h-8 stroke-[3]" />
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">Seed Planted Successfully!</h3>
+                <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">Sponsorship Processed!</h3>
                 <p className="text-gray-600 font-sans text-sm leading-relaxed">
-                  Thank you! You contributed <strong className="text-gray-900 font-bold">${successAmount}</strong> directly to <strong>{project.name}</strong>.
+                  Thank you! You contributed <strong className="text-gray-900 font-bold">₦{successAmount.toLocaleString()}</strong> directly to <strong>{project.name}</strong>.
                 </p>
               </div>
 
-              <div className="bg-[#FDFBF7] border border-[#F2EEE6] p-4 rounded-2xl text-left space-y-2 text-xs font-sans text-gray-500">
-                <div className="flex justify-between"><span className="font-semibold">Transaction Status</span><span className="text-[#15803d] font-bold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 fill-current text-white" /> APPROVED</span></div>
+              <div className="bg-gray-50 border border-gray-200 p-4 rounded-2xl text-left space-y-2 text-xs font-sans text-gray-500">
+                <div className="flex justify-between"><span className="font-semibold">Transaction Status</span><span className="text-emerald-700 font-bold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 fill-current text-white text-emerald-600" /> APPROVED</span></div>
                 <div className="flex justify-between"><span>Payment Gateway</span><span>Nomba Secure Pay</span></div>
                 <div className="flex justify-between"><span>Reference ID</span><span>NOMBA-TXN-{Date.now().toString().slice(-8)}</span></div>
                 <div className="flex justify-between"><span>Date / Time</span><span>{new Date().toLocaleString()}</span></div>
@@ -334,7 +441,7 @@ export default function ProjectDetail({ project, onBack, onDonate }: ProjectDeta
 
               <button
                 onClick={() => setShowSuccess(false)}
-                className="w-full bg-[#15803d] hover:bg-[#166534] text-white font-bold py-3.5 rounded-xl transition-all cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all cursor-pointer"
               >
                 Continue Browsing Journal
               </button>

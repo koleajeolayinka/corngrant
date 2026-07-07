@@ -21,6 +21,7 @@ export interface Project {
   raisedAmount: number;
   tags: string[];
   logs: Log[];
+  nombaWalletId?: string;
 }
 
 export interface Contribution {

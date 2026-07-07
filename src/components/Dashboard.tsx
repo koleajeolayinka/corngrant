@@ -1,19 +1,28 @@
 import React, { useState, useRef } from "react";
-import { Project, Log } from "../types";
-import { Sparkles, FileText, Image as ImageIcon, Trash2, CheckCircle2, RefreshCw, Upload, AlertCircle } from "lucide-react";
+import { Project } from "../types";
+import { Sparkles, FileText, Trash2, CheckCircle2, RefreshCw, Upload } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface DashboardProps {
   projects: Project[];
   onAddLog: (projectId: string, rawText: string, images: string[]) => Promise<void>;
+  ownerBusinessId?: string | null;
 }
 
-export default function Dashboard({ projects, onAddLog }: DashboardProps) {
-  // Let the user select which small business they are logging for
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("green-valley-urban-farm");
+export default function Dashboard({ projects, onAddLog, ownerBusinessId }: DashboardProps) {
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+    ownerBusinessId || "green-valley-urban-farm"
+  );
+
+  React.useEffect(() => {
+    if (ownerBusinessId) {
+      setSelectedProjectId(ownerBusinessId);
+    }
+  }, [ownerBusinessId]);
+
   const [rawText, setRawText] = useState("");
   const [images, setImages] = useState<string[]>([
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuCiE_lkvhbeV1Y953nhPXYVFUTopjdFfPOZqK-yMw4s4HypMgfJHaUu7KTsjMCq_1ZSq-79kEwuUUJzbXhbrYklNumyRK--flkEMYBNrsnCPyj0mjUnwIkvdEeQDB6pqskKVpDeMF6fovqkfjGKjIL_5hP_zExT-wm82YGeVuCTUCxCEUO4iOfG8yZaScQYLfbQzDH1AidUShESR4NuCKvMcM2NT1u0_ZLKurSyUvwD2_jkPrcawhAdkQ" // default preloaded eco cards
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCiE_lkvhbeV1Y953nhPXYVFUTopjdFfPOZqK-yMw4s4HypMgfJHaUu7KTsjMCq_1ZSq-79kEwuUUJzbXhbrYklNumyRK--flkEMYBNrsnCPyj0mjUnwIkvdEeQDB6pqskKVpDeMF6fovqkfjGKjIL_5hP_zExT-wm82YGeVuCTUCxCEUO4iOfG8yZaScQYLfbQzDH1AidUShESR4NuCKvMcM2NT1u0_ZLKurSyUvwD2_jkPrcawhAdkQ"
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -22,7 +31,6 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
 
   const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0];
 
-  // Drag and drop handlers
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -85,7 +93,6 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
       await onAddLog(selectedProject.id, rawText, images);
       setSuccessMsg("Success! Gemini has beautifully formatted your update and posted it live!");
       setRawText("");
-      // keep a placeholder image, or clear
       setImages([
         "https://lh3.googleusercontent.com/aida-public/AB6AXuCiE_lkvhbeV1Y953nhPXYVFUTopjdFfPOZqK-yMw4s4HypMgfJHaUu7KTsjMCq_1ZSq-79kEwuUUJzbXhbrYklNumyRK--flkEMYBNrsnCPyj0mjUnwIkvdEeQDB6pqskKVpDeMF6fovqkfjGKjIL_5hP_zExT-wm82YGeVuCTUCxCEUO4iOfG8yZaScQYLfbQzDH1AidUShESR4NuCKvMcM2NT1u0_ZLKurSyUvwD2_jkPrcawhAdkQ"
       ]);
@@ -99,7 +106,6 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
 
   return (
     <div className="max-w-md mx-auto space-y-8">
-      {/* Welcome & Switch Business */}
       <section className="space-y-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight leading-none">
@@ -110,13 +116,12 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
           </p>
         </div>
 
-        {/* Business Selector */}
         <div className="relative">
           <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Select Business Account</label>
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="w-full bg-white border border-[#becab9] text-gray-700 py-3 px-4 rounded-xl text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-[#15803d] focus:border-[#15803d] shadow-xs cursor-pointer"
+            className="w-full bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-xl text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-700 focus:border-emerald-700 shadow-xs cursor-pointer"
           >
             {projects.map(p => (
               <option key={p.id} value={p.id}>
@@ -127,13 +132,11 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
         </div>
       </section>
 
-      {/* Active Milestone Card */}
-      <article className="bg-[#FDFBF7] border border-[#F2EEE6] rounded-2xl p-6 flex items-center gap-6 shadow-xs">
-        {/* Progress Ring */}
+      <article className="bg-white border border-gray-200 rounded-2xl p-6 flex items-center gap-6 shadow-xs">
         <div className="relative flex-shrink-0 w-20 h-20">
           <svg className="w-full h-full transform -rotate-90">
             <circle
-              className="text-[#f0eded]"
+              className="text-gray-100"
               cx="40"
               cy="40"
               fill="transparent"
@@ -142,7 +145,7 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
               strokeWidth="6"
             />
             <circle
-              className="text-[#fdc003] transition-all duration-1000"
+              className="text-emerald-700 transition-all duration-1000"
               cx="40"
               cy="40"
               fill="transparent"
@@ -150,17 +153,17 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
               stroke="currentColor"
               strokeWidth="6"
               strokeDasharray="201"
-              strokeDashoffset="60" // 70% complete
+              strokeDashoffset="60"
               strokeLinecap="round"
             />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center font-bold text-[#785900] text-sm">
+          <div className="absolute inset-0 flex items-center justify-center font-bold text-emerald-800 text-sm">
             70%
           </div>
         </div>
 
         <div className="space-y-1">
-          <span className="text-[10px] font-extrabold text-[#785900] uppercase tracking-wider bg-[#fdc003]/10 px-2.5 py-0.5 rounded-md">
+          <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-md">
             Active Milestone
           </span>
           <h2 className="text-base font-bold text-gray-900 tracking-tight leading-snug">
@@ -172,23 +175,20 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
         </div>
       </article>
 
-      {/* Action Area: Progress Logger */}
       <section className="space-y-4">
         <h3 className="text-lg font-bold text-gray-900 tracking-tight px-1">
           What did you accomplish today?
         </h3>
 
-        <form onSubmit={handleSubmit} className="bg-[#FDFBF7] border border-[#F2EEE6] rounded-2xl p-5 space-y-4 shadow-xs">
-          {/* Rich textarea */}
+        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-xs">
           <textarea
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
             disabled={isSubmitting}
             placeholder="Describe your progress... (e.g., 'Installed 4 new eco-friendly beds on the south end of our rooftop and watered them using our solar tank.')"
-            className="w-full h-32 p-4 bg-white border border-[#becab9] focus:border-[#15803d] focus:ring-1 focus:ring-[#15803d] rounded-xl font-sans text-sm text-gray-800 placeholder-gray-400 resize-none outline-none transition-all"
+            className="w-full h-32 p-4 bg-white border border-gray-300 focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 rounded-xl font-sans text-sm text-gray-800 placeholder-gray-400 resize-none outline-none transition-all"
           />
 
-          {/* Drag & Drop Visual Proof Zone */}
           <div className="space-y-2">
             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Visual Proof of Work</label>
             
@@ -200,8 +200,8 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
               onClick={triggerFileSelect}
               className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all ${
                 dragActive 
-                  ? "border-[#15803d] bg-[#15803d]/5" 
-                  : "border-[#becab9] bg-white hover:bg-gray-50"
+                  ? "border-emerald-700 bg-emerald-50/50" 
+                  : "border-gray-300 bg-white hover:bg-gray-50"
               }`}
             >
               <input 
@@ -213,19 +213,26 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
                 className="hidden"
               />
               <Upload className="w-6 h-6 text-gray-400 mb-2" />
-              <p className="text-xs text-gray-600 font-semibold text-center">
-                Drag &amp; drop images, or <span className="text-[#15803d] underline">click to browse</span>
+              <p className="text-xs text-gray-650 font-bold text-center">
+                Drag &amp; drop images, or <span className="text-emerald-700 underline">click to browse</span>
               </p>
               <p className="text-[10px] text-gray-400 mt-1">JPEG, PNG up to 10MB</p>
             </div>
           </div>
 
-          {/* Attached image preview slots */}
           {images.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-1">
               {images.map((img, idx) => (
-                <div key={idx} className="w-16 h-16 rounded-xl overflow-hidden relative border border-[#F2EEE6] shadow-xs group">
-                  <img src={img} alt="preview" className="w-full h-full object-cover" />
+                <div key={idx} className="w-16 h-16 rounded-xl overflow-hidden relative border border-gray-200 shadow-xs group">
+                  <img 
+                    src={img} 
+                    alt="preview" 
+                    className="w-full h-full object-cover" 
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1463171359979-300662226149?auto=format&fit=crop&w=800&q=80";
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
@@ -238,14 +245,13 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
             </div>
           )}
 
-          {/* Feedback messaging */}
           <AnimatePresence>
             {successMsg && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-3 bg-[#15803d]/10 text-[#15803d] rounded-xl text-xs flex items-center gap-2 font-sans font-medium"
+                className="p-3.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs flex items-center gap-2 font-sans font-bold border border-emerald-100"
               >
                 <CheckCircle2 className="w-4 h-4 flex-shrink-0 fill-current text-white" />
                 <span>{successMsg}</span>
@@ -253,11 +259,10 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
             )}
           </AnimatePresence>
 
-          {/* Big Sparkle Submit Button */}
           <button
             type="submit"
             disabled={isSubmitting || !rawText.trim()}
-            className="w-full bg-[#15803d] hover:bg-[#166534] disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold text-sm py-4 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+            className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-gray-100 disabled:text-gray-400 text-white font-bold text-sm py-4 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
           >
             {isSubmitting ? (
               <>
@@ -274,23 +279,30 @@ export default function Dashboard({ projects, onAddLog }: DashboardProps) {
         </form>
       </section>
 
-      {/* Recent Logs List */}
       <section className="space-y-4">
         <div className="flex justify-between items-center px-1">
           <h3 className="text-lg font-bold text-gray-900 tracking-tight">
             Recent Logs
           </h3>
-          <span className="text-xs font-semibold text-[#15803d] bg-[#15803d]/10 px-2.5 py-1 rounded-md">
+          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-md">
             All Verified
           </span>
         </div>
 
         <div className="space-y-3">
           {selectedProject.logs.map((log) => (
-            <div key={log.id} className="bg-[#FDFBF7] border border-[#F2EEE6] rounded-2xl p-4 flex gap-4 items-start shadow-xs">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 border border-[#F2EEE6] flex-shrink-0">
+            <div key={log.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex gap-4 items-start shadow-xs">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 border border-gray-200 flex-shrink-0">
                 {log.images && log.images[0] ? (
-                  <img src={log.images[0]} alt="thumbnail" className="w-full h-full object-cover" />
+                  <img 
+                    src={log.images[0]} 
+                    alt="thumbnail" 
+                    className="w-full h-full object-cover" 
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1463171359979-300662226149?auto=format&fit=crop&w=800&q=80";
+                    }}
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
                     <FileText className="w-6 h-6" />
